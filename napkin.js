@@ -63,11 +63,14 @@ var Napkin = Napkin || {};
                 }
             }
             var superclass = isBase ? null : this.prototype;
+
             Class._base.call(constructor, superclass);
             if (superclass){
+                var c = constructor.prototype.constructor;
                 var F = function(){};
                 F.prototype = this.prototype;
                 constructor.prototype = new F();
+                constructor.prototype.constructor = c;
             }
             return constructor;
         }
