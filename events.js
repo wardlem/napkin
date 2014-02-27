@@ -11,6 +11,12 @@ var Napkin = Napkin || {};
     /* Publisher class */
     var Publisher = N.Class.extend(function(){
         this._subscribers = [];
+        this._subscribers.foreach = function(fnc){
+            var i,l;
+            for(i = 0, l = this.length; i < l; i++){
+                fnc(this[i]);
+            }
+        }
     })
         .method('registerSubscriber', function(subscriber){
             if (this._subscribers.indexOf(subscriber) === -1){
@@ -31,7 +37,7 @@ var Napkin = Napkin || {};
 
     /* Subscriber class */
     var Subscriber = N.Class.extend(function(publisher, fnc){
-        Napkin.ensureImplements(publisher, Napkin.interfaces.Publisher);
+        Napkin.Interface.ensureImplements(publisher, Napkin.interfaces.Publisher);
         this.call = fnc;
         this.publisher = publisher;
         publisher.registerSubscriber(this);
