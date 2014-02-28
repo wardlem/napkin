@@ -24,9 +24,4 @@ var Napkin = Napkin || {};
     var SaveRoute = Route.extend(function(url){
         SaveRoute.superclass.constructor.call(this, url, 'POST');
     });
-
-
-
-
-
 })(Napkin);

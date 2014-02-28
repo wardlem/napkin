@@ -6,18 +6,18 @@ var Napkin = Napkin || {};
         return;
     }
 
-    N.interfaces.FormElement = new N.Interface('Form Element', ['getValue', 'render']);
+    N.interfaces.FormElement = new N.Interface('Form Element', ['getValue', 'save', 'render']);
 
     var FormComposite = {
         addChild: function(child){
             Napkin.Interface.ensureImplements(child, Napkin.interfaces.FormElement);
             this.children.push(child);
-            this.element.append(child.render());
+            this.element.appendChild(child.render());
         },
         getValue: function(){
             var i, l, values = {}, temp;
             for (i = 0, l = this.children.length; i < l; i++){
-                temp = this.children[i].getValue();
+                temp = this.children[i].save();
                 $.extend(values, temp);
             }
             return values;
@@ -32,29 +32,52 @@ var Napkin = Napkin || {};
         this.id = data.id || '';
         this.class = data.class ? ($.isArray(data.class) ? data.class : [data.class]) : null;
         this.element = this.build();
+        this.handleError = typeof data.handleError === 'function' ? data.handleError : function(data){
+            alert(data);
+        };
+        var self = this;
+        this.handleResponse = (typeof data.handleSuccess === 'function' ? function(msg){
+            data.handleSuccess(msg, self);
+        } : function(data){
+            alert(data)
+        }
+            )
     })
         .augment(FormComposite)
         .method('save', function(){
-            var values = this.getValue();
-            Napkin.async.post(this.action, values);
+            try {
+                var values = this.getValue();
+                Napkin.async.post(this.action, values, this.handleResponse);
+            } catch (e) {
+                if (e.name === 'ValidationFailure'){
+                    this.handleError(e.message);
+                }
+            }
         })
         .method('render', function(){
-            this.container.html(this.element);
+            this.container.appendChild(this.element);
         })
         .method('build', function(){
-            var el = $('<form></form>'), i, l;
-            el.attr('method', this.method);
-            el.attr('action', this.action);
-            if (this.id) el.attr('id', this.id);
-            if (this.class) el.attr('class', this.class.join(' '));
+            var el = document.createElement('form'), div = document.createElement('DIV'), i, l;
+            div.className = 'form_inputs';
+            el.setAttribute('method', this.method);
+            el.setAttribute('action', this.action);
+            if (this.id) el.id = this.id;
+            if (this.class) el.className = this.class.join(' ');
             for (i = 0, l = this.children.length; i < l; i++){
                 Napkin.Interface.ensureImplements(this.children[i], Napkin.interfaces.FormElement);
-                el.append(this.children[i].render());
+                div.appendChild(this.children[i].render());
             }
+            el.appendChild(div);
             return el;
+        })
+        .method('reset', function(){
+            this.element.reset();
         });
 
     var FormElement = N.Class.extend(function(data){    // implements form element interface
+        this.validation = data.validation || null;
+        this.required = data.required || false;
         this.name = data.name || null;
         this.id = data.id || null;
         this.class = data.class ? ($.isArray(data.class) ? data.class : [data.class]) : null;
@@ -62,15 +85,39 @@ var Napkin = Napkin || {};
         this.element = this.build();
     })
         .method('render', function(){
-            var el = $('<div></div>');
-            el.append('<label for="'+ this.id +'">' + this.label +'</label>');
-            var div = $('<div class="input"></div>');
-            div.append(this.element);
-            el.append(div);
+            var el = document.createElement('LI');
+            var label = document.createElement('LABEL');
+            label.for = this.id;
+            label.innerText = this.label;
+            el.appendChild(label);
+            var div = document.createElement('DIV');
+            div.className='input';
+            div.appendChild(this.element);
+            el.appendChild(div);
             return el;
         })
         .method('build', function(){
             throw Error('FormElement.build() is an abstract method and must be overwritten.')
+        })
+        .method('save', function(){
+            var value = this.getValue(), message;
+            if (!value && this.required){
+                throw {
+                    name: 'ValidationFailure',
+                    message: (this.label || this.name) + ' is a required field.'
+                }
+            }
+            if (this.validation && typeof this.validation === 'function'){
+                if ((message = this.validation(value)) != false){
+                    throw {
+                        name: 'ValidationFailure',
+                        message: message
+                    }
+                }
+            }
+            var val = {};
+            val[this.name] = value;
+            return val;
         });
 
     var FieldSet = FormElement.extend(function(data){
@@ -79,18 +126,23 @@ var Napkin = Napkin || {};
     })
         .augment(FormComposite)
         .method('build', function(){
-            var el = $('<fieldset></fieldset>'), i, l;
-            if (this.id) el.attr('id', this.id);
-            if (this.class) el.attr('class', this.class.join(' '));
-            var ul = $('<ul></ul>'), li;
+            var el = document.createElement('FIELDSET'),
+                ul = document.createElement('UL'),
+                i, l, li;
+            if (this.id) el.id = this.id;
+            if (this.class) el.className = this.class.join(' ');
             for(i = 0, l = this.children.length; i < l; i++){
                 Napkin.Interface.ensureImplements(this.children[i], Napkin.interfaces.FormElement);
-                li = $('<li></li>');
-                li.append(this.children[i].render());
-                ul.append(li);
+                ul.appendChild(this.children[i].render());
             }
-            el.append(ul);
+            el.appendChild(ul);
             return el;
+        })
+        .method('render', function(){
+            return this.element;
+        })
+        .method('save', function(){
+            return this.getValue();
         });
 
     var FormField = FormElement.extend(function(data){
@@ -104,9 +156,7 @@ var Napkin = Napkin || {};
 
     })
         .method('getValue', function(){
-            var val = {};
-            val[this.name] = this.element.val();
-            return val;
+            return this.element.value;
         });
 
     var FormInput = FormField.extend(function(data){
@@ -114,13 +164,20 @@ var Napkin = Napkin || {};
         FormInput.superclass.constructor.call(this, data);
     })
         .method('build', function(){
-            var el =$('<input type="' + this.type +'" name="' + this.name +'" />');
-            if (this.id) el.attr('id', this.id);
-            if (this.class) el.attr('class', this.class.join(' '));
-            if (this.placeholder) el.attr('placeholder', this.placeholder);
-            if (this.value) el.val(this.value);
+            var el = document.createElement('INPUT');
+            el.type = this.type;
+            el.name = this.name;
+            if (this.id) el.id = this.id;
+            if (this.class) el.className = this.class.join(' ');
+            if (this.placeholder) el.setAttribute('placeholder', this.placeholder);
+            if (this.value) el.value = this.value;
             return el;
         });
+
+    var FormHidden = FormInput.extend(function(data){
+        this.type = 'hidden';
+        FormHidden.superclass.constructor.call(this, data);
+    });
 
     var FormButton = FormField.extend(function(data){
         this.onClick = data.onClick || null;
@@ -128,11 +185,13 @@ var Napkin = Napkin || {};
         FormButton.superclass.constructor.call(this, data);
     })
         .method('build', function(){
-            var el = $('<button type="'+ this.type +'">' + this.label + '</button>');
-            if (this.name) el.attr('name', this.name);
-            if (this.id) el.attr('id', this.id);
-            if (this.class) el.attr('class', this.class.join(' '));
-            if (this.value) el.val(this.value);
+            var el = document.createElement('BUTTON');
+            el.type = this.type;
+            el.innerText = this.label;
+            if (this.name) el.name = this.name;
+            if (this.id) el.id = this.id;
+            if (this.class) el.className = this.class.join(' ');
+            if (this.value) el.value = this.value;
             return el;
         })
         .method('render', function(){
@@ -140,6 +199,9 @@ var Napkin = Napkin || {};
         })
         .method('getValue', function(){
             return {};
+        })
+        .method('save', function(){
+            return this.getValue();
         });
 
     var FormSelect = FormField.extend(function(data){
@@ -147,18 +209,26 @@ var Napkin = Napkin || {};
         FormSelect.superclass.constructor.call(this, data);
     })
         .method('build', function(){
-            var el = $('<select name="' + this.name + '"></select>'), i;
-            if (this.placeholder) el.append('<option value="">' + this.placeholder + '</option>');
-            for (i in this.options){
-                var option = this.options[i];
-                el.append('<option value="' + i +'"' + (i === this.value ? ' selected' : '') + '>' + option + '</option>')
+            var el = document.createElement('SELECT'), i;
+            el.name = this.name;
+            if (this.placeholder){
+                el.innerHTML = '<option value="">' + this.placeholder + '</option>';
             }
+
+            for (i in this.options){
+
+                var option = this.options[i];
+                var opt = document.createElement('OPTION');
+                if (i === this.value) opt.selected = true;
+                opt.innerText = option;
+                opt.value = i;
+                el.appendChild(opt);
+            }
+
             return el;
         })
-        .method('updateOptions', function(opts){
-            console.log(opts);
-            this.options = opts;
-            this.element = this.build();
+        .method('getValue', function(){
+            return this.element.options[this.element.selectedIndex].value;
         });
 
     N.form = N.form || {};
@@ -170,5 +240,6 @@ var Napkin = Napkin || {};
     N.form.Field = FormField;
     N.form.Select = FormSelect;
     N.form.Button = FormButton;
+    N.form.Hidden = FormHidden;
 
 })(Napkin, jQuery);

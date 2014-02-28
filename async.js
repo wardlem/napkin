@@ -7,8 +7,19 @@ var Napkin = Napkin || {};
     N.async.getJson = function(url, callback){
         if (!url) throw Error('Cannot get json data without a url');
         $.ajax({
-            method: 'GET',
+            type: 'GET',
             url: url
+        }).done(function(msg){
+            callback($.parseJSON(msg));
+        });
+    };
+
+    N.async.post = function(url, data, callback){
+        if (!url) throw Error('Cannot post data without a url');
+        $.ajax({
+            type: 'POST',
+            url: url,
+            data: data
         }).done(function(msg){
             callback($.parseJSON(msg));
         });
