@@ -115,19 +115,25 @@ var Napkin = Napkin || {};
         })
         .method('build', function(){
             var el = FormField.superclass.constructor.call(this);
-            var self = this;
-
-            el.addEventListener('input', function(e){
-                self.deliver('input', new Napkin.event.Input(self, e, self.getValue()))
-            });
+            if (this.required === true) el.required = true;
+        })
+        .method('val', function(value){
+            if (value){
+                this.value = value;
+                this.element.value = value;
+                return this;
+            }
+            return this.element.value;
         })
         .publishers('change', 'input')
         .eventInitializer('change', function(obj){
             obj.element.addEventListener('change', function(e){
+                var self = this;
                 self.deliver('change', new Napkin.event.Change(self, e, self.getValue()));
             });
         })
         .eventInitializer('input', function(obj){
+            var self = this;
             obj.element.addEventListener('input', function(e){
                 self.deliver('input', new Napkin.event.Input(self, e, self.getValue()));
             });
@@ -145,7 +151,8 @@ var Napkin = Napkin || {};
             if (this.placeholder) el.setAttribute('placeholder', this.placeholder);
             if (this.value) el.value = this.value;
             return el;
-        });
+        })
+
 
     var FormHidden = FormInput.extend(function(data){
         data = data || {};
@@ -198,23 +205,12 @@ var Napkin = Napkin || {};
             return el;
         })
         .method('getValue', function(){
-            return this.getSelectedOption().value;
+            return this.val();
         })
         .method('getSelectedOption', function(){
             return this.element.options[this.element.selectedIndex]
         })
-        .method('reset', function(){
-            var i, l;
-            this.getSelectedOption().selected = false;
-            if (this.default){
-                for (i = 0, l = this.element.options.length; i < l; i++){
-                    if (this.element.options[i] === this.default){
-                        this.element.options[i].selected = true;
-                        break;
-                    }
-                }
-            }
-        });
+
 
     N.form = N.form || {};
     N.exceptions.ValidationException = Napkin.Exception.extend(function(message, file, line, code, trace){
