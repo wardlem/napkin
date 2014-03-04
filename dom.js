@@ -6,7 +6,10 @@ var Napkin = Napkin || {};
 
     var Element = N.Class.extend(function(tag, data){
         this.tag = tag;
-        if (!this.tag || typeof this.tag !== 'string') throw new Napkin.exceptions.InvalidArgument('A new element can not be created without a tag name');
+        if (!this.tag || typeof this.tag !== 'string'){
+            console.log(tag);
+            throw new Napkin.exceptions.InvalidArgument('A new element can not be created without a tag name');
+        }
         if (typeof data === 'object'){
             if (data.class && typeof data.class === 'string'){
                 data.class = data.class.split(' ');
@@ -29,13 +32,17 @@ var Napkin = Napkin || {};
             if (strategy && typeof strategy === 'function'){
                 return strategy(this);
             }
-            return this.element();
+            return this.element;
         })
         .method('append', function(child){
-            if (child instanceof Napkin.dom.Element){
-                this.element.appendChild(child.render());
-            } else {
-                this.element.appendChild(child);
+            try{
+                if (child instanceof Napkin.dom.Element){
+                    this.element.appendChild(child.render());
+                } else {
+                    this.element.appendChild(child);
+                }
+            } catch (e) {
+                throw new Napkin.Exception('Dom failure: ' + child);
             }
         })
         .method('text', function(value){

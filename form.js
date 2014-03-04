@@ -40,7 +40,7 @@ var Napkin = Napkin || {};
             alert(data);
         };
         var self = this;
-        data.handleResponse =
+        data.handleSuccess =
             typeof data.handleResponse === 'function'
                 ? function(msg){
                 data.handleResponse(msg, self);
@@ -54,7 +54,7 @@ var Napkin = Napkin || {};
         .method('save', function(){
             try {
                 var values = this.getValue();
-                Napkin.async.post(this.action, values, this.handleResponse);
+                Napkin.async.post(this.action, values, this.handleSuccess);
             } catch (e) {
                 if (e instanceof Napkin.exceptions.ValidationException){
                     this.handleError(e.message);
@@ -71,7 +71,7 @@ var Napkin = Napkin || {};
         });
 
     var FormElement = N.dom.Element.extend(function(tag, data){
-        FormElement.superclass.constructor.call(tag, data);
+        FormElement.superclass.constructor.call(this, tag, data);
         this.label = this.label || '';
     })
         .method('save', function(){
@@ -85,10 +85,9 @@ var Napkin = Napkin || {};
                 }
             }
             var val = {};
-            val[this.name] = value;
+            val[this.formName] = value;
             return val;
-        })
-        .method('reset', function(){});
+        });
 
     var FieldSet = FormElement.extend(function(data){
         FieldSet.superclass.constructor.call(this, 'FIELDSET', data);
@@ -100,9 +99,11 @@ var Napkin = Napkin || {};
         });
 
     var FormField = FormElement.extend(function(tag, data){
+        data = data || {};
         data.default = data.default || '';
         data.value = data.value || this.default;
-        if (!data || !data.name){
+        data.formName = data.formName || data.name;
+        if (!data.formName){
             throw new Napkin.exceptions.InvalidArgument('A form field can not be created without a name.');
         }
         FormField.superclass.constructor.call(this, tag, data);
@@ -114,8 +115,9 @@ var Napkin = Napkin || {};
             this.element.value = this.default || '';
         })
         .method('build', function(){
-            var el = FormField.superclass.constructor.call(this);
+            var el = FormField.superclass.build.call(this);
             if (this.required === true) el.required = true;
+            return el;
         })
         .method('val', function(value){
             if (value){
@@ -128,14 +130,12 @@ var Napkin = Napkin || {};
         .publishers('change', 'input')
         .eventInitializer('change', function(obj){
             obj.element.addEventListener('change', function(e){
-                var self = this;
-                self.deliver('change', new Napkin.event.Change(self, e, self.getValue()));
+                obj.deliver('change', new Napkin.event.Change(obj, e, obj.getValue()));
             });
         })
         .eventInitializer('input', function(obj){
-            var self = this;
             obj.element.addEventListener('input', function(e){
-                self.deliver('input', new Napkin.event.Input(self, e, self.getValue()));
+                obj.deliver('input', new Napkin.event.Input(obj, e, obj.getValue()));
             });
         });
 
@@ -147,11 +147,11 @@ var Napkin = Napkin || {};
         .method('build', function(){
             var el = FormInput.superclass.build.call(this);
             el.type = this.type;
-            el.name = this.name;
+            el.name = this.formName;
             if (this.placeholder) el.setAttribute('placeholder', this.placeholder);
             if (this.value) el.value = this.value;
             return el;
-        })
+        });
 
 
     var FormHidden = FormInput.extend(function(data){
@@ -166,7 +166,7 @@ var Napkin = Napkin || {};
         FormButton.superclass.constructor.call(this, 'BUTTON', data);
     })
         .method('build', function(){
-            var el = FormButton.superclass.build.call();
+            var el = FormButton.superclass.build.call(this);
             el.type = this.type;
             el.innerText = this.label;
             if (this.name) el.name = this.name;
@@ -182,11 +182,19 @@ var Napkin = Napkin || {};
         .method('save', function(){
             return this.getValue();
         })
-        .method('reset', function(){});
+        .method('reset', function(){})
+        .publishers('click')
+        .eventInitializer('click', function(obj){
+            obj.element.addEventListener('click', function(e){
+                e.preventDefault();
+                obj.deliver('click', new Napkin.event.Click(obj, e, obj.getValue()));
+            });
+        });
 
     var FormSelect = FormField.extend(function(data){
+        data = data || {};
         data.options = data.options || {};
-        FormSelect.superclass.constructor.call(this, data);
+        FormSelect.superclass.constructor.call(this, 'SELECT', data);
     })
         .method('build', function(){
             var el = FormSelect.superclass.build.call(this), i;
@@ -199,9 +207,8 @@ var Napkin = Napkin || {};
                 if (i === this.value) opt.element.selected = true;
                 opt.text(option);
                 opt.element.value = i;
-                el.append(opt);
+                el.appendChild(opt.render());
             }
-
             return el;
         })
         .method('getValue', function(){
@@ -209,7 +216,7 @@ var Napkin = Napkin || {};
         })
         .method('getSelectedOption', function(){
             return this.element.options[this.element.selectedIndex]
-        })
+        });
 
 
     N.form = N.form || {};

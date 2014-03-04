@@ -8,6 +8,7 @@ var pyroFormStrategy = function(item)
             div.append(item.children[i].render(pyroFormStrategy));
         }
         item.append(div);
+        item.container.appendChild(item.element);
     }
 
     function renderFieldSet(item)
@@ -15,9 +16,11 @@ var pyroFormStrategy = function(item)
         var ul = new Napkin.dom.Element('UL'), i, l;
         for(i = 0, l = item.children.length; i < l; i++){
             Napkin.Interface.ensureImplements(item.children[i], Napkin.interfaces.FormElement);
-            ul.append(item.children[i].render(pyroFormStrategy()));
+            var li = item.children[i].render(pyroFormStrategy);
+            ul.append(li);
         }
-        item.element.append(ul);
+        item.append(ul);
+        return item;
     }
 
     function renderField(item)
@@ -28,20 +31,20 @@ var pyroFormStrategy = function(item)
         label.for = item.id;
         label.innerText = item.label;
         li.append(label);
-        div.append(item.element);
+        div.append(item);
         li.append(div);
         return li;
     }
 
     switch (item.tag.toLowerCase()){
         case 'form':
-            renderForm(item);
+            return renderForm(item);
             break;
         case 'fieldset':
-            renderFieldSet(item);
+            return renderFieldSet(item);
             break;
         default:
-            renderField(item);
+            return renderField(item);
             break;
     }
 };
